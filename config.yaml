@@ -1,0 +1,128 @@
+# CC-MAC: Constraint-Certified Multi-Agent Coordination for Sustainable Tourism
+# Expert Systems With Applications - New Submission Configuration
+#
+# Architecture: 4 components
+#   1. GNN Spatial Encoder (Graph Attention Network over POI graph)
+#   2. Multi-Agent Attention Coordination
+#   3. Dueling Q-Head with action masking
+#   4. Augmented Lagrangian Constraint Enforcement
+#
+# Key design decisions:
+#   - Focused architecture (no unused components)
+#   - Strong baselines (QMIX, VDN, MAPPO, IndependentDQN)
+#   - Honest constraint handling (augmented Lagrangian, not "formal guarantees")
+#   - Real per-episode statistics (no synthetic normal approximation)
+
+metadata:
+  title: "Constraint-Certified Multi-Agent Coordination for Sustainable Tourism"
+  version: "2.1.0"
+  target_journal: "Expert Systems With Applications"
+  core_novelty: "Certifiable constraint satisfaction in multi-agent tourism coordination"
+
+model:
+  name: "ccmac"
+  hidden_dim: 128
+  gnn:
+    num_layers: 2
+    num_heads: 4
+    node_dim: 8       # category(5) + capacity(1) + service_rate(1) + attractiveness(1)
+    edge_dim: 2       # distance(1) + travel_time(1)
+    dropout: 0.1
+  coordination:
+    num_heads: 4
+    dropout: 0.1
+  q_head:
+    dueling: true     # false for ablation variant
+    dropout: 0.1
+
+training:
+  algorithm: "constrained_multi_agent_dqn"
+  gamma: 0.99
+  tau: 0.005
+  learning_rate: 3.0e-4
+  weight_decay: 1.0e-5
+  batch_size: 128
+  n_step_return: 3
+  gradient_clip: 1.0
+  epsilon_start: 1.0
+  epsilon_end: 0.01
+  epsilon_decay: 0.995
+  scheduler: "cosine"
+  min_lr_ratio: 0.01
+  buffer_size: 50000
+  priority_alpha: 0.6
+  priority_beta_start: 0.4
+  priority_beta_end: 1.0
+  constraints:
+    method: "augmented_lagrangian"
+    target_satisfaction_rate: 0.95
+    lambda_learning_rate: 0.01
+    rho_init: 1.0
+    rho_max: 100.0
+    rho_growth: 1.5
+    constraint_names: ["capacity", "co2", "diversity", "queue"]
+  privacy:
+    enabled: false
+    clip_norm: 1.0
+    noise_scale: 1.1
+    target_epsilon: 1.0
+    target_delta: 1.0e-5
+
+environment:
+  dataset: "verona_card"
+  num_pois: 18
+  num_agents: 10
+  episode_length_minutes: 480
+  decision_interval_minutes: 15
+  operating_hours: [8, 20]
+  reward_weights:
+    satisfaction: 0.3
+    crowding: 0.3
+    diversity: 0.2
+    efficiency: 0.2
+  constraints:
+    capacity_safety_factor: 1.0
+    co2_budget_kg: 100.0
+    min_diversity_entropy: 1.5
+    max_queue_minutes: 30.0
+
+experiments:
+  seeds: [42, 1337, 2048, 3141, 9999]
+  num_training_episodes: 5000
+  eval_frequency: 100
+  eval_episodes: 50
+  baselines: ["qmix", "vdn", "independent_dqn", "mappo", "random", "greedy", "distance"]
+  ablation:
+    variants: ["full_model", "no_gnn", "no_coordination", "no_constraints", "no_dueling"]
+    ablation_episodes: 2000
+  cross_domain:
+    source: "verona"
+    targets: ["florence", "venice", "rome", "milan"]
+    zero_shot: true
+    few_shot_episodes: 100
+  statistics:
+    significance_level: 0.05
+    correction: "bonferroni"
+    effect_size: "cohens_d"
+    confidence_level: 0.95
+    use_real_episode_data: true   # critical: no synthetic approximation
+
+reproducibility:
+  deterministic: true
+  torch_deterministic: true
+
+compute:
+  device: "auto"
+  num_workers: 4
+
+output:
+  base_dir: "./results"
+  save_checkpoints: true
+  checkpoint_frequency: 500
+  save_best: true
+  logging:
+    level: "INFO"
+    save_metrics_json: true
+  figures:
+    format: "pdf"
+    dpi: 300
